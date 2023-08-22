@@ -15,6 +15,9 @@
 import machine
 from machine import Pin
 from machine import I2C
+import math
+
+#define CALCULATE_EVERY_N_BEATS         3
 
 INT_STATUS   = 0x00  # Which interrupts are tripped
 INT_ENABLE   = 0x01  # Which interrupts are active
@@ -89,7 +92,6 @@ INTERRUPT_FIFO = 3
 
 MODE_HR = 0x02
 MODE_SPO2 = 0x03
-
 
 class MAX30100(object):
 
@@ -217,3 +219,46 @@ class MAX30100(object):
             "REV_ID": self.i2c.readfrom_mem(I2C_ADDRESS, REV_ID,1)[0],
             "PART_ID": self.i2c.readfrom_mem(I2C_ADDRESS, PART_ID,1)[0],
         }
+
+
+class SpO2Calculator:
+    spO2LUT = [100, 100, 100, 100, 99, 99, 99, 99, 99, 99, 98, 98, 98, 98,
+               98, 97, 97, 97, 97, 97, 97, 96, 96, 96, 96, 96, 96, 95, 95,
+               95, 95, 95, 95, 94, 94, 94, 94, 94, 93, 93, 93, 93, 93]
+
+    def __init__(self):
+        self.irACValueSqSum = 0
+        self.redACValueSqSum = 0
+        self.beatsDetectedNum = 0
+        self.samplesRecorded = 0
+        self.spO2 = 0
+
+    def update(self, irACValue, redACValue, beatDetected):
+        self.irACValueSqSum += irACValue * irACValue
+        self.redACValueSqSum += redACValue * redACValue
+        self.samplesRecorded += 1
+
+        if beatDetected:
+            self.beatsDetectedNum += 1
+            if self.beatsDetectedNum == CALCULATE_EVERY_N_BEATS:
+                acSqRatio = 100.0 * math.log(self.redACValueSqSum / self.samplesRecorded) / math.log(self.irACValueSqSum / self.samplesRecorded)
+                index = 0
+
+                if acSqRatio > 66:
+                    index = int(acSqRatio) - 66
+                elif acSqRatio > 50:
+                    index = int(acSqRatio) - 50
+
+                self.reset()
+                self.spO2 = self.spO2LUT[index]
+
+    def reset(self):
+        self.samplesRecorded = 0
+        self.redACValueSqSum = 0
+        self.irACValueSqSum = 0
+        self.beatsDetectedNum = 0
+        self.spO2 = 0
+
+    def getSpO2(self):
+        return self.spO2
+

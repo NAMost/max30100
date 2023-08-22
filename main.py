@@ -10,6 +10,7 @@
 from machine import Pin
 from machine import I2C
 import max30100
+from max30100 import SpO2Calculator
 import time
 
 sda=Pin(4)
@@ -30,5 +31,9 @@ print('Reading sensor...')
 
 for count in range(500):  
   sensor.read_sensor()
-  print(sensor.ir, sensor.red)  
+  spo2_calculator = SpO2Calculator()
+  spo2_calculator.update(sensor.ir, sensor.red, True)
+  estimated_spo2 = spo2_calculator.getSpO2()
+  
+  print(f"Iteration {count + 1}: IR={sensor.ir}, RED={sensor.red}, Estimated SpO2={estimated_spo2}")
   time.sleep(0.5)
